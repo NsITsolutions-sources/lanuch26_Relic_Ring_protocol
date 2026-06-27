@@ -987,3 +987,31 @@ if st.session_state.step == 3:
         st.info("Transmission complete — use the button inside the popup to start a new one, or reopen it below.")
         if st.button("REOPEN RESULT"):
             st.rerun()
+
+from streamlit_agraph import agraph, Node, Edge, Config
+
+def draw_network_graph(network, path=None):
+    nodes = []
+    edges = []
+    
+   
+    for p_id in network.planets:
+        color = "#5EEAD4" if p_id in network.active_nodes else "#FF0000"
+        nodes.append(Node(id=p_id, label=p_id, color=color, size=25))
+    
+   
+    for i, p1 in enumerate(network.planets):
+        for p2 in list(network.planets)[i+1:]:
+            dist = network.calculate_void_distance(network.planets[p1], network.planets[p2])
+            if dist <= network.max_void_hop:
+                edges.append(Edge(source=p1, target=p2, color="#ffffff"))
+
+    if path:
+        for i in range(len(path)-1):
+            edges.append(Edge(source=path[i], target=path[i+1], color="#F0B429", width=5))
+
+    config = Config(width=700, height=500, directed=False, physics=True)
+    return agraph(nodes=nodes, edges=edges, config=config)
+
+st.subheader("🌐 Zeta-26 Network Topology")
+draw_network_graph(network, path=path if 'path' in locals() else None)
