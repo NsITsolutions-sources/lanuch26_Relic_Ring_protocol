@@ -42,6 +42,28 @@ class RelicRingProtocol:
         L = dist - (p1.r + p1.h) - (p2.r + p2.h)
         return max(0, L)
 
+    def calculate_detailed_latency(self, p1, p2):
+        L = self.calculate_void_distance(p1, p2)
+        
+        # 1. Void Latency
+        void_lat = L / self.C
+        # 2. Atmosphere Latency
+        atmos_lat = ((p1.h * p1.n) + (p2.h * p2.n)) / self.C
+        # 3. Tower Latency
+        tower_lat = 2 * (self.tower_delay / 1000)
+        # 4. Fiber Latency
+        fiber_lat = (2 * math.pi * p1.r * 1) / (p1.towers * self.fiber_speed_fraction * self.C)
+        
+        total_lat = void_lat + atmos_lat + tower_lat + fiber_lat
+        
+        return {
+            "void": void_lat,
+            "atmosphere": atmos_lat,
+            "tower": tower_lat,
+            "fiber": fiber_lat,
+            "total": total_lat
+        }
+
     def calculate_tv(self, p1, p2, L):
         """Calculates Void Travel Time (Tv)."""
         return ((p1.h * p1.n) + (p2.h * p2.n) + L) / self.C
@@ -58,10 +80,11 @@ class RelicRingProtocol:
         return fiber_delay + processing_delay
 
     def get_shortest_path(self, start_id, end_id):
-        """Dijkstra's Algorithm to find the lowest-latency route."""
+        # 1. Error Handling: 
         if start_id not in self.active_nodes or end_id not in self.active_nodes:
             return None, float('inf')
-
+        
+        # Dijkstra's algorithm
         distances = {node: float('inf') for node in self.active_nodes}
         distances[start_id] = 0
         previous_nodes = {node: None for node in self.active_nodes}
@@ -69,39 +92,41 @@ class RelicRingProtocol:
 
         while pq:
             current_dist, current_id = heapq.heappop(pq)
-            if current_dist > distances[current_id]: continue
-            if current_id == end_id: break
-
+            
+            if current_id == end_id: 
+                break
+            
             p1 = self.planets[current_id]
+            
             for neighbor_id in self.active_nodes:
-                if neighbor_id == current_id: continue
+                if neighbor_id == current_id: 
+                    continue
                 
                 p2 = self.planets[neighbor_id]
-                L = self.calculate_void_distance(p1, p2)
                 
-                # Constraint: Wireless Signal Threshold
-                if L > self.max_void_hop: continue
+                # Void distance 
+                if self.calculate_void_distance(p1, p2) > self.max_void_hop: 
+                    continue
                 
-                # Assume 2 towers hit per transit for simplification (Entry & Exit)
-                Tp = self.calculate_tp(p1, 2) 
-                Tv = self.calculate_tv(p1, p2, L)
+                # 2. Latency calculation: 
+                latency_data = self.calculate_detailed_latency(p1, p2)
+                weight = latency_data["total"]
                 
-                weight = Tp + Tv
                 distance = current_dist + weight
-
+                
                 if distance < distances[neighbor_id]:
                     distances[neighbor_id] = distance
                     previous_nodes[neighbor_id] = current_id
                     heapq.heappush(pq, (distance, neighbor_id))
-
-        # Reconstruct path
+        
+        
         path, current = [], end_id
         while current is not None:
             path.append(current)
             current = previous_nodes[current]
-        path = path[::-1]
         
-        return (path, distances[end_id]) if path[0] == start_id else (None, float('inf'))
+        
+        return path[::-1] if path and path[-1] == start_id else None, distances.get(end_id, float('inf'))
 
     @staticmethod
     def encode_payload(text, base):

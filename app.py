@@ -480,6 +480,8 @@ section[data-testid="stSidebar"] {
     animation: progressFill 4.0s linear forwards;
 }
 @keyframes progressFill { from { width: 0%; } to { width: 100%; } }
+[data-testid="stMetricValue"] { color: #5EEAD4 !important; font-size: 1.5rem !important; }
+[data-testid="stMetricLabel"] { color: #00FF41 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -902,6 +904,33 @@ def result_dialog():
         return
 
     st.success(f"✅ PAYLOAD DELIVERED TO {result['destination'].upper()}")
+
+    # --- LATENCY BREAKDOWN (M3) අලුතින් එකතු කරන කොටස ---
+    st.markdown("### ⏱️ Latency Breakdown (M3)")
+
+    sum_void, sum_atmos, sum_tower, sum_fiber = 0, 0, 0, 0
+
+    # මාර්ගයේ ඇති එක් එක් අදියර සඳහා අගයන් ගණනය කිරීම
+    for i in range(len(result["path"]) - 1):
+        p1 = network.planets[result["path"][i]]
+        p2 = network.planets[result["path"][i + 1]]
+        lats = network.calculate_detailed_latency(p1, p2)
+        sum_void += lats['void']
+        sum_atmos += lats['atmosphere']
+        sum_tower += lats['tower']
+        sum_fiber += lats['fiber']
+
+    # තිරයේ පෙන්වීම (පළල් වෙන්න row 2කට බෙදලා, දශම ස්ථාන 3කට අඩු කරලා)
+    r1c1, r1c2, r1c3 = st.columns(3)
+    r1c1.metric("Void Latency", f"{sum_void:.3f} s")
+    r1c2.metric("Atmos Latency", f"{sum_atmos:.3f} s")
+    r1c3.metric("Fiber Latency", f"{sum_fiber:.3f} s")
+
+    r2c1, r2c2 = st.columns(2)
+    r2c1.metric("Tower Latency", f"{sum_tower:.3f} s")
+    r2c2.metric("TOTAL LATENCY", f"{result['latency']:.3f} s")
+
+    st.markdown("---")
 
     mc1, mc2 = st.columns(2)
     mc1.metric("TOTAL LATENCY (S)", f"{result['latency']:.4f}")
